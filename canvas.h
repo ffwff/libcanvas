@@ -31,6 +31,12 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
                                      unsigned char g,
                                      unsigned char b,
                                      unsigned char a);
+void LIBCANVAS_PREFIX(ctx_stroke_rect)(struct canvas_ctx *ctx,
+                                     int x, int y, int width, int height,
+                                     unsigned char r,
+                                     unsigned char g,
+                                     unsigned char b,
+                                     unsigned char a);
 
 // Lines
 void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
@@ -181,6 +187,17 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
   }
 }
 
+void LIBCANVAS_PREFIX(ctx_stroke_rect)(struct canvas_ctx *ctx,
+                                     int xs, int ys, int width, int height,
+                                     uint8_t r,
+                                     uint8_t g,
+                                     uint8_t b,
+                                     uint8_t a) {
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, width, 1, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, 1, height, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys + height, width, 1, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs + width, ys, 1, height, r, g, b, a);
+}
 /* Lines */
 
 void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
@@ -190,6 +207,22 @@ void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
                                       uint8_t b,
                                       uint8_t a) {
   // TODO: checks
+
+  if(y0 == y1) {
+    if(x0 < x1) {
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, x1 - x0, 1, r, g, b, a);
+    } else {
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x1, y0, x0 - x1, 1, r, g, b, a);
+    }
+    return;
+  } else if(x0 == x1) {
+    if(y0 < y1) {
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, 1, y1 - y0, r, g, b, a);
+    } else {
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y1, 1, y0 - y1, r, g, b, a);
+    }
+    return;
+  }
 
   int dx = x1 - x0;
   int dy = y1 - y0;
