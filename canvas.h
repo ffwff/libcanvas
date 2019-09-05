@@ -65,9 +65,9 @@ void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
                                        struct canvas_color color);
 
 // Circles
-void LIBCANVAS_PREFIX(ctx_filll_circle)(struct canvas_ctx *ctx,
-                                        int x, int y, int rad,
-                                        struct canvas_color color);
+void LIBCANVAS_PREFIX(ctx_fill_circle)(struct canvas_ctx *ctx,
+                                       int x, int y, int rad,
+                                       struct canvas_color color);
 void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
                                          int x, int y, int rad,
                                          struct canvas_color color);
