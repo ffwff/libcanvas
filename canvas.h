@@ -142,7 +142,7 @@ uint8_t *LIBCANVAS_PREFIX(ctx_get_surface)(struct canvas_ctx *ctx) {
   return ctx->src;
 }
 
-canvas_format LIBCANVAS_PREFIX(canv_ctx_get_format)(struct canvas_ctx *ctx) {
+canvas_format LIBCANVAS_PREFIX(ctx_get_format)(struct canvas_ctx *ctx) {
   return ctx->format;
 }
 
