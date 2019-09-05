@@ -85,8 +85,14 @@ void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
 /* Optimized functions */
 
 static inline void LIBCANVAS_PRIV(memset_long)(uint32_t *dst, uint32_t c, int words) {
-  asm("cld\nrep stosl" :: "a"(c), "D"(dst), "c"(words)
-      : "memory");
+    unsigned long d0, d1, d2;
+    __asm__ __volatile__(
+        "cld\nrep stosl"
+        : "=&a"(d0), "=&D"(d1), "=&c"(d2)
+        : "0"(c),
+          "1"(dst),
+          "2"(words)
+        : "memory");
 }
 
 
