@@ -8,6 +8,33 @@ struct canvas_ctx;
 #define LIBCANVAS_DEBUG(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
 #define LIBCANVAS_PREFIX(x) canvas_##x
 
+struct canvas_color {
+  unsigned char r, g, b, a;
+} __attribute__((packed));
+
+static inline struct canvas_color canvas_color_rgba(unsigned char r,
+                                                    unsigned char g,
+                                                    unsigned char b,
+                                                    unsigned char a) {
+  return (struct canvas_color){
+    .r = r,
+    .g = g,
+    .b = b,
+    .a = a,
+  };
+}
+
+static inline struct canvas_color canvas_color_rgb(unsigned char r,
+                                                  unsigned char g,
+                                                  unsigned char b) {
+  return (struct canvas_color){
+    .r = r,
+    .g = g,
+    .b = b,
+    .a = 0xff,
+  };
+}
+
 typedef enum {
   // Each pixel is a 32-bit quantity with the
   // alpha, red, green, blue channels stored in the lower bits
@@ -27,38 +54,23 @@ int LIBCANVAS_PREFIX(ctx_get_height)(struct canvas_ctx *ctx);
 // Rectangles
 void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
                                      int x, int y, int width, int height,
-                                     unsigned char r,
-                                     unsigned char g,
-                                     unsigned char b,
-                                     unsigned char a);
+                                     struct canvas_color color);
 void LIBCANVAS_PREFIX(ctx_stroke_rect)(struct canvas_ctx *ctx,
                                      int x, int y, int width, int height,
-                                     unsigned char r,
-                                     unsigned char g,
-                                     unsigned char b,
-                                     unsigned char a);
+                                     struct canvas_color color);
 
 // Lines
 void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
-                                     int x0, int y0, int x1, int y1,
-                                     unsigned char r,
-                                     unsigned char g,
-                                     unsigned char b,
-                                     unsigned char a);
+                                       int x0, int y0, int x1, int y1,
+                                       struct canvas_color color);
 
 // Circles
 void LIBCANVAS_PREFIX(ctx_filll_circle)(struct canvas_ctx *ctx,
-                                         int x, int y, int rad,
-                                         unsigned char r,
-                                         unsigned char g,
-                                         unsigned char b,
-                                         unsigned char a);
+                                        int x, int y, int rad,
+                                        struct canvas_color color);
 void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
                                          int x, int y, int rad,
-                                         unsigned char r,
-                                         unsigned char g,
-                                         unsigned char b,
-                                         unsigned char a);
+                                         struct canvas_color color);
 
 // implementation
 #ifdef LIBCANVAS_IMPLEMENTATION
@@ -69,6 +81,14 @@ void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+/* Optimized functions */
+
+static inline void LIBCANVAS_PRIV(memset_long)(uint32_t *dst, uint32_t c, int words) {
+  asm("cld\nrep stosl" :: "a"(c), "D"(dst), "c"(words)
+      : "memory");
+}
+
 
 /* Core */
 
@@ -89,9 +109,7 @@ struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create)(int width, int height, canvas_fo
       size_t words = width * height;
       ctx->src = LIBCANVAS_MALLOC(words * sizeof(uint32_t));
       uint32_t *data = (uint32_t *)ctx->src;
-      for(size_t i = 0; i < words; i++) {
-        data[i] = 0xff000000;
-      }
+      LIBCANVAS_PRIV(memset_long)(data, 0xff000000, words);
       break;
     }
     case LIBCANVAS_FORMAT_RGB24: {
@@ -133,21 +151,18 @@ int LIBCANVAS_PREFIX(ctx_get_height)(struct canvas_ctx *ctx) {
 /* Colors */
 static inline uint32_t
 LIBCANVAS_PRIV(rgba_to_word)(struct canvas_ctx *ctx,
-                             uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+                                     struct canvas_color color) {
   if (ctx->format == LIBCANVAS_FORMAT_ARGB32)
-    return a << 24 | r << 16 | g << 8 | b;
+    return color.a << 24 | color.r << 16 | color.g << 8 | color.b;
   else
-    return r << 16 | g << 8 | b;
+    return color.r << 16 | color.g << 8 | color.b;
 }
 
 /* Rectangles */
 
 void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
                                      int xs, int ys, int width, int height,
-                                     uint8_t r,
-                                     uint8_t g,
-                                     uint8_t b,
-                                     uint8_t a) {
+                                     struct canvas_color ccolor) {
   // checks
   if(xs < 0) {
     xs = 0;
@@ -173,13 +188,11 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      if (a == __UINT8_MAX__) {
-        uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, r, g, b, a);
+      if (ccolor.a == __UINT8_MAX__) {
+        uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
         uint32_t *dst = (uint32_t *)ctx->src;
         for (int y = ys; y < (ys + height); y++) {
-          for (int x = xs; x < (xs + width); x++) {
-            dst[y * ctx->width + x] = color;
-          }
+          LIBCANVAS_PRIV(memset_long)(dst + y * ctx->width + xs, color, width);
         }
       } else {
         LIBCANVAS_DEBUG("TODO: unsupported alpha blitting\n");
@@ -195,37 +208,31 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
 
 void LIBCANVAS_PREFIX(ctx_stroke_rect)(struct canvas_ctx *ctx,
                                      int xs, int ys, int width, int height,
-                                     uint8_t r,
-                                     uint8_t g,
-                                     uint8_t b,
-                                     uint8_t a) {
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, width, 1, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, 1, height, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys + height, width, 1, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs + width, ys, 1, height, r, g, b, a);
+                                     struct canvas_color color) {
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, width, 1, color);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys, 1, height, color);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs, ys + height, width, 1, color);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xs + width, ys, 1, height, color);
 }
 /* Lines */
 
 void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
                                       int x0, int y0, int x1, int y1,
-                                      uint8_t r,
-                                      uint8_t g,
-                                      uint8_t b,
-                                      uint8_t a) {
+                                      struct canvas_color ccolor) {
   // TODO: checks
 
   if(y0 == y1) {
     if(x0 < x1) {
-      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, x1 - x0, 1, r, g, b, a);
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, x1 - x0, 1, ccolor);
     } else {
-      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x1, y0, x0 - x1, 1, r, g, b, a);
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x1, y0, x0 - x1, 1, ccolor);
     }
     return;
   } else if(x0 == x1) {
     if(y0 < y1) {
-      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, 1, y1 - y0, r, g, b, a);
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y0, 1, y1 - y0, ccolor);
     } else {
-      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y1, 1, y0 - y1, r, g, b, a);
+      LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, x0, y1, 1, y0 - y1, ccolor);
     }
     return;
   }
@@ -239,7 +246,7 @@ void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, r, g, b, a);
+      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
       uint32_t *dst = (uint32_t *)ctx->src;
       for (int x = x0; x < x1; x++) {
         dst[y * ctx->width + x] = color;
@@ -261,15 +268,12 @@ void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
 /* Circles */
 static void LIBCANVAS_PRIV(stroke_circle_oct)(struct canvas_ctx *ctx,
                                               int xc, int yc, int x, int y,
-                                              unsigned char r,
-                                              unsigned char g,
-                                              unsigned char b,
-                                              unsigned char a) {
+                                              struct canvas_color ccolor) {
   switch (ctx->format) {
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, r, g, b, a);
+      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
       uint32_t *dst = (uint32_t *)ctx->src;
 #define _putpixel(x, y) dst[(y) * ctx->width + (x)] = color
       _putpixel(xc + x, yc + y);
@@ -288,30 +292,21 @@ static void LIBCANVAS_PRIV(stroke_circle_oct)(struct canvas_ctx *ctx,
 
 static void LIBCANVAS_PRIV(fill_circle_oct)(struct canvas_ctx *ctx,
                                               int xc, int yc, int x, int y,
-                                              unsigned char r,
-                                              unsigned char g,
-                                              unsigned char b,
-                                              unsigned char a) {
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc + y, x * 2, 1, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc - y, x * 2, 1, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc + x, y * 2, 1, r, g, b, a);
-  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc - x, y * 2, 1, r, g, b, a);
+                                              struct canvas_color ccolor) {
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc + y, x * 2, 1, ccolor);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc - y, x * 2, 1, ccolor);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc + x, y * 2, 1, ccolor);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc - x, y * 2, 1, ccolor);
 }
 
 typedef void (LIBCANVAS_PRIV(circle_oct_fn)(struct canvas_ctx *ctx,
                                             int xc, int yc, int x, int y,
-                                            unsigned char r,
-                                            unsigned char g,
-                                            unsigned char b,
-                                            unsigned char a));
+                                              struct canvas_color ccolor));
 
 static inline void LIBCANVAS_PRIV(ctx_circle_wrapper)(struct canvas_ctx *ctx,
-                                         int xc, int yc, int rad,
-                                         unsigned char r,
-                                         unsigned char g,
-                                         unsigned char b,
-                                         unsigned char a,
-                                         LIBCANVAS_PRIV(circle_oct_fn) oct_fn) {
+                                          int xc, int yc, int rad,
+                                          struct canvas_color ccolor,
+                                          LIBCANVAS_PRIV(circle_oct_fn) oct_fn) {
   if (xc + rad > ctx->width || xc - rad < 0)
     return;
   if (yc + rad > ctx->height || yc - rad < 0)
@@ -319,7 +314,7 @@ static inline void LIBCANVAS_PRIV(ctx_circle_wrapper)(struct canvas_ctx *ctx,
 
   int x = 0, y = rad;
   int d = 3 - 2 * rad;
-  oct_fn(ctx, xc, yc, x, y, r, g, b, a);
+  oct_fn(ctx, xc, yc, x, y, ccolor);
   while (y >= x) {
     x++;
     if (d >= 0) {
@@ -327,26 +322,20 @@ static inline void LIBCANVAS_PRIV(ctx_circle_wrapper)(struct canvas_ctx *ctx,
       d += 4 * (x - y) + 10;
     } else
       d += 4 * x + 6;
-    oct_fn(ctx, xc, yc, x, y, r, g, b, a);
+    oct_fn(ctx, xc, yc, x, y, ccolor);
   }
 }
 
 void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
                                          int xc, int yc, int rad,
-                                         unsigned char r,
-                                         unsigned char g,
-                                         unsigned char b,
-                                         unsigned char a) {
-  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, r, g, b, a, LIBCANVAS_PRIV(stroke_circle_oct));
+                                         struct canvas_color color) {
+  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, color, LIBCANVAS_PRIV(stroke_circle_oct));
 }
 
 void LIBCANVAS_PREFIX(ctx_fill_circle)(struct canvas_ctx *ctx,
-                                         int xc, int yc, int rad,
-                                         unsigned char r,
-                                         unsigned char g,
-                                         unsigned char b,
-                                         unsigned char a) {
-  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, r, g, b, a, LIBCANVAS_PRIV(fill_circle_oct));
+                                        int xc, int yc, int rad,
+                                        struct canvas_color color) {
+  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, color, LIBCANVAS_PRIV(fill_circle_oct));
 }
 
 #endif
