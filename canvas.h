@@ -6,7 +6,7 @@ struct canvas_ctx;
 #define LIBCANVAS_CALLOC(nmemb, sz) calloc(nmemb, sz)
 #define LIBCANVAS_FREE(x) free(x)
 #define LIBCANVAS_DEBUG(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
-#define LIBCANVAS_PREFIX(x) canv_##x
+#define LIBCANVAS_PREFIX(x) canvas_##x
 
 typedef enum {
   // Each pixel is a 32-bit quantity with the
@@ -47,6 +47,12 @@ void LIBCANVAS_PREFIX(ctx_stroke_line)(struct canvas_ctx *ctx,
                                      unsigned char a);
 
 // Circles
+void LIBCANVAS_PREFIX(ctx_filll_circle)(struct canvas_ctx *ctx,
+                                         int x, int y, int rad,
+                                         unsigned char r,
+                                         unsigned char g,
+                                         unsigned char b,
+                                         unsigned char a);
 void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
                                          int x, int y, int rad,
                                          unsigned char r,
@@ -280,12 +286,32 @@ static void LIBCANVAS_PRIV(stroke_circle_oct)(struct canvas_ctx *ctx,
   }
 }
 
-void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
+static void LIBCANVAS_PRIV(fill_circle_oct)(struct canvas_ctx *ctx,
+                                              int xc, int yc, int x, int y,
+                                              unsigned char r,
+                                              unsigned char g,
+                                              unsigned char b,
+                                              unsigned char a) {
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc + y, x * 2, 1, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc - y, x * 2, 1, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc + x, y * 2, 1, r, g, b, a);
+  LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc - x, y * 2, 1, r, g, b, a);
+}
+
+typedef void (LIBCANVAS_PRIV(circle_oct_fn)(struct canvas_ctx *ctx,
+                                            int xc, int yc, int x, int y,
+                                            unsigned char r,
+                                            unsigned char g,
+                                            unsigned char b,
+                                            unsigned char a));
+
+static inline void LIBCANVAS_PRIV(ctx_circle_wrapper)(struct canvas_ctx *ctx,
                                          int xc, int yc, int rad,
                                          unsigned char r,
                                          unsigned char g,
                                          unsigned char b,
-                                         unsigned char a) {
+                                         unsigned char a,
+                                         LIBCANVAS_PRIV(circle_oct_fn) oct_fn) {
   if (xc + rad > ctx->width || xc - rad < 0)
     return;
   if (yc + rad > ctx->height || yc - rad < 0)
@@ -293,16 +319,34 @@ void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
 
   int x = 0, y = rad;
   int d = 3 - 2 * rad;
-  LIBCANVAS_PRIV(stroke_circle_oct)(ctx, xc, yc, x, y, r, g, b, a);
+  oct_fn(ctx, xc, yc, x, y, r, g, b, a);
   while (y >= x) {
     x++;
-    if (d > 0) {
+    if (d >= 0) {
       y--;
       d += 4 * (x - y) + 10;
     } else
       d += 4 * x + 6;
-    LIBCANVAS_PRIV(stroke_circle_oct)(ctx, xc, yc, x, y, r, g, b, a);
+    oct_fn(ctx, xc, yc, x, y, r, g, b, a);
   }
+}
+
+void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
+                                         int xc, int yc, int rad,
+                                         unsigned char r,
+                                         unsigned char g,
+                                         unsigned char b,
+                                         unsigned char a) {
+  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, r, g, b, a, LIBCANVAS_PRIV(stroke_circle_oct));
+}
+
+void LIBCANVAS_PREFIX(ctx_fill_circle)(struct canvas_ctx *ctx,
+                                         int xc, int yc, int rad,
+                                         unsigned char r,
+                                         unsigned char g,
+                                         unsigned char b,
+                                         unsigned char a) {
+  LIBCANVAS_PRIV(ctx_circle_wrapper)(ctx, xc, yc, rad, r, g, b, a, LIBCANVAS_PRIV(fill_circle_oct));
 }
 
 #endif
