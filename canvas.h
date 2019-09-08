@@ -4,6 +4,7 @@
 struct canvas_ctx;
 #define LIBCANVAS_MALLOC(x) malloc(x)
 #define LIBCANVAS_CALLOC(nmemb, sz) calloc(nmemb, sz)
+#define LIBCANVAS_REALLOC(old, newsz) realloc(old, newsz)
 #define LIBCANVAS_FREE(x) free(x)
 #define LIBCANVAS_DEBUG(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
 #define LIBCANVAS_PREFIX(x) canvas_##x
@@ -50,6 +51,8 @@ unsigned char *LIBCANVAS_PREFIX(ctx_get_surface)(struct canvas_ctx *ctx);
 canvas_format LIBCANVAS_PREFIX(ctx_get_format)(struct canvas_ctx *ctx);
 int LIBCANVAS_PREFIX(ctx_get_width)(struct canvas_ctx *ctx);
 int LIBCANVAS_PREFIX(ctx_get_height)(struct canvas_ctx *ctx);
+
+int LIBCANVAS_PREFIX(ctx_resize_buffer)(struct canvas_ctx *ctx, int width, int height);
 
 // Rectangles
 void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
@@ -154,6 +157,26 @@ int LIBCANVAS_PREFIX(ctx_get_height)(struct canvas_ctx *ctx) {
   return ctx->height;
 }
 
+int LIBCANVAS_PREFIX(ctx_resize_buffer)(struct canvas_ctx *ctx, int width, int height) {
+  if(width < 0 || height < 0)
+    return 1;
+  ctx->width = width;
+  ctx->height = height;
+  switch (ctx->format) {
+    case LIBCANVAS_FORMAT_ARGB32:
+      // fallthrough
+    case LIBCANVAS_FORMAT_RGB24: {
+      size_t bytes = width * height * sizeof(uint32_t);
+      ctx->src = LIBCANVAS_REALLOC(ctx->src, bytes);
+      return ctx->src != NULL;
+    }
+    default: {
+      LIBCANVAS_DEBUG("TODO: unsupported format %d\n", ctx->format);
+      return 1;
+    }
+  }
+}
+
 /* Colors */
 static inline uint32_t
 LIBCANVAS_PRIV(rgba_to_word)(struct canvas_ctx *ctx,
@@ -194,14 +217,10 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      if (ccolor.a == __UINT8_MAX__) {
-        uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
-        uint32_t *dst = (uint32_t *)ctx->src;
-        for (int y = ys; y < (ys + height); y++) {
-          LIBCANVAS_PRIV(memset_long)(dst + y * ctx->width + xs, color, width);
-        }
-      } else {
-        LIBCANVAS_DEBUG("TODO: unsupported alpha blitting\n");
+      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
+      uint32_t *dst = (uint32_t *)ctx->src;
+      for (int y = ys; y < (ys + height); y++) {
+        LIBCANVAS_PRIV(memset_long)(dst + y * ctx->width + xs, color, width);
       }
       break;
     }
