@@ -5,14 +5,14 @@ DEFAULT: canvas.a
 .PHONY: install clean
 
 canvas.o: canvas.c
-	gcc -g -O2 -Wall -c $^ -o $@
+	$(CC) -g -O2 -Wall -c $^ -o $@
 
-canvas.a: canvas.o
+libcanvas.a: canvas.o
 	ar rcs $@ $^
 
-install: canvas.h canvas.a
+install: canvas.h libcanvas.a
 	cp canvas.h $(INCLUDEDIR)
-	cp canvas.a $(LIBDIR)
+	cp libcanvas.a $(LIBDIR)
 
 clean:
 	rm -f *.a *.o
