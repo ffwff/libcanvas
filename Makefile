@@ -1,10 +1,11 @@
 PREFIX ?= /usr
 INCLUDEDIR ?= $(PREFIX)/include
 LIBDIR ?= $(PREFIX)/lib
-.PHONY: install
+DEFAULT: canvas.a
+.PHONY: install clean
 
 canvas.o: canvas.c
-	gcc -c $^ -o $@
+	gcc -g -O2 -Wall -c $^ -o $@
 
 canvas.a: canvas.o
 	ar rcs $@ $^
@@ -12,3 +13,6 @@ canvas.a: canvas.o
 install: canvas.h canvas.a
 	cp canvas.h $(INCLUDEDIR)
 	cp canvas.a $(LIBDIR)
+
+clean:
+	rm -f *.a *.o

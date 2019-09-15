@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+#include "canvas.h"
 
 /* Optimized functions */
 
@@ -97,8 +100,8 @@ int LIBCANVAS_PREFIX(ctx_resize_buffer)(struct canvas_ctx *ctx, int width, int h
 
 /* Colors */
 static inline uint32_t
-LIBCANVAS_PRIV(rgba_to_word)(struct canvas_ctx *ctx,
-                                     struct canvas_color color) {
+rgba_to_word(struct canvas_ctx *ctx,
+             struct canvas_color color) {
   if (ctx->format == LIBCANVAS_FORMAT_ARGB32)
     return color.a << 24 | color.r << 16 | color.g << 8 | color.b;
   else
@@ -135,7 +138,7 @@ void LIBCANVAS_PREFIX(ctx_fill_rect)(struct canvas_ctx *ctx,
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      uint32_t color = LIBCANVAS_PRIV(rgba_to_word)(ctx, ccolor);
+      uint32_t color = rgba_to_word(ctx, ccolor);
       uint32_t *dst = (uint32_t *)ctx->src;
       for (int y = ys; y < (ys + height); y++) {
         memset_long(dst + y * ctx->width + xs, color, width);
@@ -233,23 +236,23 @@ static void stroke_circle_oct(struct canvas_ctx *ctx,
   }
 }
 
-static void LIBCANVAS_PRIV(fill_circle_oct)(struct canvas_ctx *ctx,
-                                              int xc, int yc, int x, int y,
-                                              struct canvas_color ccolor) {
+static void fill_circle_oct(struct canvas_ctx *ctx,
+                            int xc, int yc, int x, int y,
+                            struct canvas_color ccolor) {
   LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc + y, x * 2, 1, ccolor);
   LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - x, yc - y, x * 2, 1, ccolor);
   LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc + x, y * 2, 1, ccolor);
   LIBCANVAS_PREFIX(ctx_fill_rect)(ctx, xc - y, yc - x, y * 2, 1, ccolor);
 }
 
-typedef void circle_oct_fn(struct canvas_ctx *ctx,
-                           int xc, int yc, int x, int y,
-                           struct canvas_color ccolor));
+typedef void (*circle_oct_fn)(struct canvas_ctx *ctx,
+                              int xc, int yc, int x, int y,
+                              struct canvas_color ccolor);
 
-static inline void LIBCANVAS_PRIV(ctx_circle_wrapper)(struct canvas_ctx *ctx,
-                                          int xc, int yc, int rad,
-                                          struct canvas_color ccolor,
-                                          circle_oct_fn oct_fn) {
+static inline void ctx_circle_wrapper(struct canvas_ctx *ctx,
+                                      int xc, int yc, int rad,
+                                      struct canvas_color ccolor,
+                                      circle_oct_fn oct_fn) {
   if (xc + rad > ctx->width || xc - rad < 0)
     return;
   if (yc + rad > ctx->height || yc - rad < 0)
