@@ -1,6 +1,6 @@
 # libcanvas
 
-A single-header canvas library in C.
+A minimal canvas library in C.
 
 ## License
 
