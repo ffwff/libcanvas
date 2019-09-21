@@ -12,10 +12,11 @@ struct canvas_color {
   unsigned char r, g, b, a;
 } __attribute__((packed));
 
-static inline struct canvas_color canvas_color_rgba(unsigned char r,
-                                                    unsigned char g,
-                                                    unsigned char b,
-                                                    unsigned char a) {
+static inline struct canvas_color LIBCANVAS_PREFIX(color_rgba)
+                                    (unsigned char r,
+                                     unsigned char g,
+                                     unsigned char b,
+                                     unsigned char a) {
   return (struct canvas_color){
     .r = r,
     .g = g,
@@ -24,9 +25,10 @@ static inline struct canvas_color canvas_color_rgba(unsigned char r,
   };
 }
 
-static inline struct canvas_color canvas_color_rgb(unsigned char r,
-                                                  unsigned char g,
-                                                  unsigned char b) {
+static inline struct canvas_color LIBCANVAS_PREFIX(color_rgb)
+                                    (unsigned char r,
+                                     unsigned char g,
+                                     unsigned char b) {
   return (struct canvas_color){
     .r = r,
     .g = g,
@@ -74,7 +76,7 @@ void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
                                          int x, int y, int rad,
                                          struct canvas_color color);
 
-// implementation
-#ifdef LIBCANVAS_IMPLEMENTATION
-
-#endif
+// Bit blit
+void LIBCANVAS_PREFIX(ctx_bitblit)(struct canvas_ctx *dst,
+                                   struct canvas_ctx *src,
+                                   int x, int y);

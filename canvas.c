@@ -8,15 +8,26 @@
 
 /* Optimized functions */
 
-static inline void memset_long(uint32_t *dst, uint32_t c, int words) {
-    unsigned long d0, d1, d2;
-    __asm__ __volatile__(
-        "cld\nrep stosl"
-        : "=&a"(d0), "=&D"(d1), "=&c"(d2)
-        : "0"(c),
-          "1"(dst),
-          "2"(words)
-        : "memory");
+static inline void memset_long(uint32_t *dst, uint32_t c, size_t words) {
+  unsigned long d0, d1, d2;
+  __asm__ __volatile__(
+    "cld\nrep stosl"
+    : "=&a"(d0), "=&D"(d1), "=&c"(d2)
+    : "0"(c),
+      "1"(dst),
+      "2"(words)
+    : "memory");
+}
+
+static inline void memcpy_long(uint32_t *dst, uint32_t *src, size_t words) {
+  unsigned long d0, d1, d2;
+  __asm__ __volatile__(
+    "cld\nrep movsl"
+    : "=&S"(d0), "=&D"(d1), "=&c"(d2)
+    : "0"(src),
+      "1"(dst),
+      "2"(words)
+    : "memory");
 }
 
 
@@ -282,4 +293,28 @@ void LIBCANVAS_PREFIX(ctx_fill_circle)(struct canvas_ctx *ctx,
                                         int xc, int yc, int rad,
                                         struct canvas_color color) {
   ctx_circle_wrapper(ctx, xc, yc, rad, color, fill_circle_oct);
+}
+
+/* Bit blit */
+void LIBCANVAS_PREFIX(ctx_bitblit)(struct canvas_ctx *dst,
+                                   struct canvas_ctx *src,
+                                   int dx, int dy) {
+  switch (dst->format) {
+    case LIBCANVAS_FORMAT_ARGB32:
+      // fallthrough
+    case LIBCANVAS_FORMAT_RGB24: {
+      if(src->format != LIBCANVAS_FORMAT_ARGB32 && src->format != LIBCANVAS_FORMAT_RGB24) {
+        // TODO
+        return;
+      }
+      for(int y = 0; y < src->height; y++) {
+        uintptr_t offset = (dy + y) * dst->width + dx;
+        uintptr_t src_offset = y * src->width;
+        uint32_t *dst_surf = (uint32_t *)dst->src;
+        uint32_t *src_surf = (uint32_t *)src->src;
+        memcpy_long(&dst_surf[offset], &src_surf[src_offset], src->width);
+      }
+      break;
+    }
+  }
 }
