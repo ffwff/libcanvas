@@ -38,6 +38,7 @@ struct canvas_ctx {
   int width;
   int height;
   canvas_format format;
+  int free_src;
 };
 
 struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create)(int width, int height, canvas_format format) {
@@ -45,6 +46,7 @@ struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create)(int width, int height, canvas_fo
   ctx->width = width;
   ctx->height = height;
   ctx->format = format;
+  ctx->free_src = 1;
   switch (format) {
     case LIBCANVAS_FORMAT_ARGB32: {
       size_t words = width * height;
@@ -68,8 +70,20 @@ struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create)(int width, int height, canvas_fo
   return ctx;
 }
 
+struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create_from_surface)
+  (void *ptr, int width, int height, canvas_format format) {
+  struct canvas_ctx *ctx = LIBCANVAS_MALLOC(sizeof(struct canvas_ctx));
+  ctx->width = width;
+  ctx->height = height;
+  ctx->format = format;
+  ctx->src = (uint8_t *)ptr;
+  ctx->free_src = 0;
+  return ctx;
+}
+
 void LIBCANVAS_PREFIX(ctx_destroy)(struct canvas_ctx *ctx) {
-  LIBCANVAS_FREE(ctx->src);
+  if(ctx->free_src)
+    LIBCANVAS_FREE(ctx->src);
   LIBCANVAS_FREE(ctx);
 }
 

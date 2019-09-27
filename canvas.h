@@ -47,6 +47,8 @@ typedef enum {
 } canvas_format;
 
 struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create)(int width, int height, canvas_format format);
+struct canvas_ctx *LIBCANVAS_PREFIX(ctx_create_from_surface)
+  (void *ptr, int width, int height, canvas_format format);
 void LIBCANVAS_PREFIX(ctx_destroy)(struct canvas_ctx *);
 unsigned char *LIBCANVAS_PREFIX(ctx_get_surface)(struct canvas_ctx *ctx);
 canvas_format LIBCANVAS_PREFIX(ctx_get_format)(struct canvas_ctx *ctx);
