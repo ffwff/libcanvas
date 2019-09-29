@@ -82,3 +82,7 @@ void LIBCANVAS_PREFIX(ctx_stroke_circle)(struct canvas_ctx *ctx,
 void LIBCANVAS_PREFIX(ctx_bitblit)(struct canvas_ctx *dst,
                                    struct canvas_ctx *src,
                                    int x, int y);
+void LIBCANVAS_PREFIX(ctx_bitblit_mask)(struct canvas_ctx *dst,
+                                        struct canvas_ctx *src,
+                                        int x, int y,
+                                        struct canvas_color color);

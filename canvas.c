@@ -9,7 +9,7 @@
 /* Optimized functions */
 
 static inline void memset_long(uint32_t *dst, uint32_t c, size_t words) {
-  unsigned long d0, d1, d2;
+  unsigned int d0, d1, d2;
   __asm__ __volatile__(
     "cld\nrep stosl"
     : "=&a"(d0), "=&D"(d1), "=&c"(d2)
@@ -20,7 +20,7 @@ static inline void memset_long(uint32_t *dst, uint32_t c, size_t words) {
 }
 
 static inline void memcpy_long(uint32_t *dst, uint32_t *src, size_t words) {
-  unsigned long d0, d1, d2;
+  unsigned int d0, d1, d2;
   __asm__ __volatile__(
     "cld\nrep movsl"
     : "=&S"(d0), "=&D"(d1), "=&c"(d2)
@@ -29,6 +29,32 @@ static inline void memcpy_long(uint32_t *dst, uint32_t *src, size_t words) {
       "2"(words)
     : "memory");
 }
+
+#if defined(__SSE2__)
+#include <emmintrin.h>
+static inline void
+mask_color_long(uint32_t *udst, uint32_t *usrc, uint32_t color, size_t words) {
+  __m128i mask = _mm_setr_epi32(color, color, color, color);
+  for(size_t i = 0; i < words; i += 4) {
+    __m128i *dst = (__m128i *)(&udst[i]);
+    __m128i *src = (__m128i *)(&usrc[i]);
+    __m128i cmp = _mm_cmpeq_epi32(*src, mask);
+    __m128i s1 = _mm_and_si128(cmp, *dst);
+    __m128i s2 = _mm_andnot_si128(cmp, *src);
+    _mm_store_si128(dst, _mm_or_si128(s1, s2));
+  }
+}
+#else
+static inline void
+mask_color_long(uint32_t *udst, uint32_t *usrc, uint32_t color, size_t words) {
+  for(size_t i = 0; i < words; i++) {
+    uint32_t cmp = usrc[i] == color;
+    uint32_t s1 = udst[i] & cmp;
+    uint32_t s2 = usrc[i] & ~cmp;
+    *dst = s1 | s2;
+  }
+}
+#endif
 
 
 /* Core */
@@ -317,10 +343,8 @@ void LIBCANVAS_PREFIX(ctx_bitblit)(struct canvas_ctx *dst,
     case LIBCANVAS_FORMAT_ARGB32:
       // fallthrough
     case LIBCANVAS_FORMAT_RGB24: {
-      if(src->format != LIBCANVAS_FORMAT_ARGB32 && src->format != LIBCANVAS_FORMAT_RGB24) {
-        // TODO
+      if (src->format != LIBCANVAS_FORMAT_ARGB32 && src->format != LIBCANVAS_FORMAT_RGB24)
         return;
-      }
       for(int y = 0; y < src->height; y++) {
         uintptr_t offset = (dy + y) * dst->width + dx;
         uintptr_t src_offset = y * src->width;
@@ -329,6 +353,36 @@ void LIBCANVAS_PREFIX(ctx_bitblit)(struct canvas_ctx *dst,
         memcpy_long(&dst_surf[offset], &src_surf[src_offset], src->width);
       }
       break;
+    }
+    default: {
+      // TODO
+    }
+  }
+}
+
+/* Bit blit */
+void LIBCANVAS_PREFIX(ctx_bitblit_mask)(struct canvas_ctx *dst,
+                                        struct canvas_ctx *src,
+                                        int dx, int dy,
+                                        struct canvas_color ccolor) {
+  switch (dst->format) {
+    case LIBCANVAS_FORMAT_ARGB32:
+      // fallthrough
+    case LIBCANVAS_FORMAT_RGB24: {
+      if (src->format != LIBCANVAS_FORMAT_ARGB32 && src->format != LIBCANVAS_FORMAT_RGB24)
+        return;
+      uint32_t color = rgba_to_word(src, ccolor);
+      for(int y = 0; y < src->height; y++) {
+        uintptr_t offset = (dy + y) * dst->width + dx;
+        uintptr_t src_offset = y * src->width;
+        uint32_t *dst_surf = (uint32_t *)dst->src;
+        uint32_t *src_surf = (uint32_t *)src->src;
+        mask_color_long(&dst_surf[offset], &src_surf[src_offset], color, src->width);
+      }
+      break;
+    }
+    default: {
+      // TODO
     }
   }
 }

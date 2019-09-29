@@ -5,7 +5,7 @@ DEFAULT: canvas.a
 .PHONY: install clean
 
 canvas.o: canvas.c
-	$(CC) -g -O2 -Wall -c $^ -o $@
+	$(CC) -g -O2 -Wall -c $(CFLAGS) $^ -o $@
 
 libcanvas.a: canvas.o
 	ar rcs $@ $^
