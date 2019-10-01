@@ -37,11 +37,11 @@ mask_color_long(uint32_t *udst, uint32_t *usrc, uint32_t color, size_t words) {
   __m128i mask = _mm_setr_epi32(color, color, color, color);
   for(size_t i = 0; i < words; i += 4) {
     __m128i *dst = (__m128i *)(&udst[i]);
-    __m128i *src = (__m128i *)(&usrc[i]);
-    __m128i cmp = _mm_cmpeq_epi32(*src, mask);
-    __m128i s1 = _mm_and_si128(cmp, *dst);
-    __m128i s2 = _mm_andnot_si128(cmp, *src);
-    _mm_store_si128(dst, _mm_or_si128(s1, s2));
+    __m128i src = _mm_loadu_si128((__m128i *)(&usrc[i]));
+    __m128i cmp = _mm_cmpeq_epi32(src, mask);
+    __m128i s1 = _mm_and_si128(cmp, _mm_loadu_si128(dst));
+    __m128i s2 = _mm_andnot_si128(cmp, src);
+    _mm_storeu_si128(dst, _mm_or_si128(s1, s2));
   }
 }
 #else
@@ -51,7 +51,7 @@ mask_color_long(uint32_t *udst, uint32_t *usrc, uint32_t color, size_t words) {
     uint32_t cmp = usrc[i] == color;
     uint32_t s1 = udst[i] & cmp;
     uint32_t s2 = usrc[i] & ~cmp;
-    *dst = s1 | s2;
+    udst[i] = s1 | s2;
   }
 }
 #endif
